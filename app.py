@@ -125,7 +125,7 @@ def display_sources(sources):
 
 with tab_chat:
     st.title(APP_TITLE)
-    st.caption("Ask questions about Warren Buffett, or ask what he'd think of any stock (e.g. \"What would Buffett think of TSLA?\")")
+    st.caption("Ask questions about Warren Buffett, or ask what he'd think of any stock ")
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -138,7 +138,7 @@ with tab_chat:
             display_sources(msg.get("sources"))
 
     pending = st.session_state.pop("pending_question", None)
-    user_input = st.chat_input("Ask about Buffett, or try: \"What would Buffett think of AAPL?\"")
+    user_input = st.chat_input("Ask about Buffett")
     question = pending or user_input
 
     if question:
