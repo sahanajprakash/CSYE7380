@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LineChart, FlaskConical } from "lucide-react";
 import StockSelector from "../components/trading/StockSelector";
 import PriceChart from "../components/trading/PriceChart";
@@ -6,9 +6,9 @@ import FundamentalsPanel from "../components/trading/FundamentalsPanel";
 import BacktestForm from "../components/backtest/BacktestForm";
 import BacktestResults from "../components/backtest/BacktestResults";
 import EquityChart from "../components/backtest/EquityChart";
+import SignalChart from "../components/backtest/SignalChart";
 import TradesTable from "../components/backtest/TradesTable";
-import { mockPriceDataBySymbol, mockFundamentals } from "../data/mockStockData";
-import { runBacktest } from "../services/api";
+import { runBacktest, getStockPrices, getStockFundamentals } from "../services/api";
 
 const tabs = [
   { id: "trading", label: "Stock Trading", icon: LineChart },
@@ -18,6 +18,29 @@ const tabs = [
 export default function TradingPage() {
   const [activeTab, setActiveTab] = useState("trading");
   const [selectedSymbol, setSelectedSymbol] = useState("AAPL");
+  const [priceData, setPriceData] = useState([]);
+  const [priceLoading, setPriceLoading] = useState(false);
+  const [period, setPeriod] = useState("6mo");
+  const [fundamentals, setFundamentals] = useState(null);
+  const [fundamentalsLoading, setFundamentalsLoading] = useState(false);
+  const [backtestPriceData, setBacktestPriceData] = useState(null);
+
+  useEffect(() => {
+    setPriceLoading(true);
+    getStockPrices(selectedSymbol, period)
+      .then(setPriceData)
+      .catch(() => setPriceData([]))
+      .finally(() => setPriceLoading(false));
+  }, [selectedSymbol, period]);
+
+  useEffect(() => {
+    setFundamentalsLoading(true);
+    setFundamentals(null);
+    getStockFundamentals(selectedSymbol)
+      .then(setFundamentals)
+      .catch(() => setFundamentals(null))
+      .finally(() => setFundamentalsLoading(false));
+  }, [selectedSymbol]);
 
   // Backtest state
   const [backtestResult, setBacktestResult] = useState(null);
@@ -25,13 +48,14 @@ export default function TradingPage() {
   const [backtestTrades, setBacktestTrades] = useState(null);
   const [backtestLoading, setBacktestLoading] = useState(false);
 
-  async function handleBacktest({ symbol, strategy, startDate, endDate, shortWindow, longWindow }) {
+  async function handleBacktest({ symbol, strategy, startDate, endDate, shortWindow, longWindow, rsiPeriod, oversold, overbought }) {
     setBacktestLoading(true);
     try {
-      const data = await runBacktest(symbol, strategy, { startDate, endDate, shortWindow, longWindow });
+      const data = await runBacktest(symbol, strategy, { startDate, endDate, shortWindow, longWindow, rsiPeriod, oversold, overbought });
       setBacktestResult(data.result);
       setBacktestCurve(data.equityCurve);
       setBacktestTrades(data.trades);
+      setBacktestPriceData(data.priceData || null);
     } finally {
       setBacktestLoading(false);
     }
@@ -68,11 +92,28 @@ export default function TradingPage() {
       {/* Stock Trading Tab */}
       {activeTab === "trading" && (
         <div className="space-y-6">
-          <div className="max-w-xs">
-            <StockSelector selected={selectedSymbol} onSelect={setSelectedSymbol} />
+          <div className="flex items-center justify-between">
+            <div className="max-w-xs">
+              <StockSelector selected={selectedSymbol} onSelect={setSelectedSymbol} />
+            </div>
+            <div className="flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900/60">
+              {["1mo","3mo","6mo","1y"].map((p, i) => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  className={`rounded px-3 py-1.5 text-xs font-medium transition-all ${
+                    period === p
+                      ? "bg-white text-red-600 shadow-sm dark:bg-slate-800 dark:text-red-400"
+                      : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                  }`}
+                >
+                  {["1M","3M","6M","1Y"][i]}
+                </button>
+              ))}
+            </div>
           </div>
-          <PriceChart data={mockPriceDataBySymbol[selectedSymbol] || []} />
-          <FundamentalsPanel data={mockFundamentals[selectedSymbol]} />
+          <PriceChart data={priceData} loading={priceLoading} />
+          <FundamentalsPanel data={fundamentals} loading={fundamentalsLoading} />
         </div>
       )}
 
@@ -87,6 +128,7 @@ export default function TradingPage() {
               {backtestResult ? (
                 <>
                   <BacktestResults result={backtestResult} />
+                  {backtestPriceData && <SignalChart priceData={backtestPriceData} trades={backtestTrades} />}
                   {backtestCurve && <EquityChart data={backtestCurve} />}
                 </>
               ) : (

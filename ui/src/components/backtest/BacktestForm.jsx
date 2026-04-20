@@ -8,12 +8,21 @@ export default function BacktestForm({ onRun, loading }) {
   const [strategy, setStrategy] = useState("ma_crossover");
   const [startDate, setStartDate] = useState("2018-01-01");
   const [endDate, setEndDate] = useState("");
+  // MA params
   const [shortWindow, setShortWindow] = useState(20);
   const [longWindow, setLongWindow] = useState(50);
+  // RSI params
+  const [rsiPeriod, setRsiPeriod] = useState(14);
+  const [oversold, setOversold] = useState(30);
+  const [overbought, setOverbought] = useState(70);
 
   function handleSubmit(e) {
     e.preventDefault();
-    onRun({ symbol, strategy, startDate, endDate: endDate || null, shortWindow: Number(shortWindow), longWindow: Number(longWindow) });
+    onRun({
+      symbol, strategy, startDate, endDate: endDate || null,
+      shortWindow: Number(shortWindow), longWindow: Number(longWindow),
+      rsiPeriod: Number(rsiPeriod), oversold: Number(oversold), overbought: Number(overbought),
+    });
   }
 
   const inputCls = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-red-500/50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100";
@@ -53,29 +62,43 @@ export default function BacktestForm({ onRun, loading }) {
           </div>
           <div>
             <label className={labelCls}>End Date</label>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} placeholder="Today" className={inputCls} />
+            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputCls} />
           </div>
         </div>
 
-        {/* Short MA Window */}
-        <div>
-          <label className={labelCls}>Short MA Window</label>
-          <input
-            type="number" min={1} max={200} value={shortWindow}
-            onChange={(e) => setShortWindow(e.target.value)}
-            className={inputCls}
-          />
-        </div>
+        {/* MA params */}
+        {strategy === "ma_crossover" && (
+          <div className="space-y-4">
+            <div>
+              <label className={labelCls}>Short MA Window</label>
+              <input type="number" min={1} max={200} value={shortWindow} onChange={(e) => setShortWindow(e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Long MA Window</label>
+              <input type="number" min={1} max={500} value={longWindow} onChange={(e) => setLongWindow(e.target.value)} className={inputCls} />
+            </div>
+          </div>
+        )}
 
-        {/* Long MA Window */}
-        <div>
-          <label className={labelCls}>Long MA Window</label>
-          <input
-            type="number" min={1} max={500} value={longWindow}
-            onChange={(e) => setLongWindow(e.target.value)}
-            className={inputCls}
-          />
-        </div>
+        {/* RSI params */}
+        {strategy === "rsi" && (
+          <div className="space-y-4">
+            <div>
+              <label className={labelCls}>RSI Period</label>
+              <input type="number" min={2} max={50} value={rsiPeriod} onChange={(e) => setRsiPeriod(e.target.value)} className={inputCls} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Oversold Threshold</label>
+                <input type="number" min={10} max={49} value={oversold} onChange={(e) => setOversold(e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Overbought Threshold</label>
+                <input type="number" min={51} max={90} value={overbought} onChange={(e) => setOverbought(e.target.value)} className={inputCls} />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Submit */}
         <button

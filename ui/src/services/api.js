@@ -22,12 +22,16 @@ export async function fetchInvestmentActivity() {
   return res.json();
 }
 
-export async function getStockData(symbol) {
-  await new Promise((r) => setTimeout(r, 300));
-  return {
-    prices: mockPriceDataBySymbol[symbol] || mockPriceDataBySymbol["AAPL"],
-    fundamentals: mockFundamentals[symbol] || mockFundamentals["AAPL"],
-  };
+export async function getStockFundamentals(symbol) {
+  const res = await fetch(`/api/stock/fundamentals/${symbol}`);
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+export async function getStockPrices(symbol, period = "6mo") {
+  const res = await fetch(`/api/stock/prices/${symbol}?period=${period}`);
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
 }
 
 export async function runBacktest(symbol, strategy, params = {}) {

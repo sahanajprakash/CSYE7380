@@ -15,7 +15,7 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from config import VECTORSTORE_DIR, EMBEDDING_MODEL, LOCAL_MODEL, GROQ_MODEL, TOP_K
 from stock_analysis import is_stock_query, extract_ticker, fetch_stock_data, format_stock_summary
 
-load_dotenv()
+load_dotenv(override=True)
 
 # Module-level singletons (loaded once, reused across calls)
 _vectorstore = None

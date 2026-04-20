@@ -60,6 +60,131 @@ def portfolio_activity():
     return result
 
 
+@app.get("/api/stock/prices/{symbol}")
+def stock_prices(symbol: str, period: str = "6mo"):
+    import yfinance as yf
+
+    df = yf.download(symbol.upper(), period=period, auto_adjust=True, progress=False)
+    if df.empty:
+        raise HTTPException(status_code=404, detail=f"No data for {symbol}")
+    if isinstance(df.columns, __import__("pandas").MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    df = df[["Open", "High", "Low", "Close", "Volume"]].dropna()
+    return [
+        {
+            "date": str(date.date()),
+            "open": round(float(row["Open"]), 2),
+            "high": round(float(row["High"]), 2),
+            "low": round(float(row["Low"]), 2),
+            "close": round(float(row["Close"]), 2),
+            "volume": int(row["Volume"]),
+        }
+        for date, row in df.iterrows()
+    ]
+
+
+@app.get("/api/stock/fundamentals/{symbol}")
+def stock_fundamentals(symbol: str):
+    import math
+    from stock_analysis import compute_ratios, passes_rule, fmt, RATIO_DEFINITIONS
+
+    try:
+        data = compute_ratios(symbol.upper())
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    info = data.get("info", {})
+
+    metrics = []
+    for name, series in data["ratios"].items():
+        defn = RATIO_DEFINITIONS[name]
+        try:
+            raw = float(series.iloc[0]) if hasattr(series, "iloc") else float(series)
+            latest = None if (math.isnan(raw) or math.isinf(raw)) else raw
+        except (TypeError, ValueError):
+            latest = None
+
+        # Year-by-year history for bar chart (oldest → newest)
+        history = []
+        if hasattr(series, "items"):
+            for date, val in reversed(list(series.items())):
+                try:
+                    fval = float(val)
+                    if not (math.isnan(fval) or math.isinf(fval)):
+                        year = str(date.year) if hasattr(date, "year") else str(date)[:4]
+                        history.append({"year": year, "value": round(fval, 4)})
+                except (TypeError, ValueError):
+                    pass
+
+        status_bool = passes_rule(name, latest) if latest is not None else None
+        metrics.append({
+            "name": name,
+            "value": latest,
+            "formatted": fmt(name, latest) if latest is not None else "N/A",
+            "status": "pass" if status_bool is True else "fail" if status_bool is False else "info",
+            "rule": defn["rule"],
+            "logic": defn["logic"],
+            "group": defn["group"],
+            "history": history,
+        })
+
+    def df_to_table(df):
+        if df is None or df.empty:
+            return {"columns": [], "rows": []}
+        cols = [str(c.date()) if hasattr(c, "date") else str(c) for c in df.columns]
+        rows = []
+        for idx, row in df.iterrows():
+            row_data = {"name": str(idx)}
+            for col_ts in df.columns:
+                key = str(col_ts.date()) if hasattr(col_ts, "date") else str(col_ts)
+                try:
+                    fval = float(row[col_ts])
+                    row_data[key] = None if (math.isnan(fval) or math.isinf(fval)) else fval
+                except (TypeError, ValueError):
+                    row_data[key] = None
+            rows.append(row_data)
+        return {"columns": cols, "rows": rows}
+
+    return {
+        "symbol": data["symbol"],
+        "companyName": info.get("longName", data["symbol"]),
+        "currentPrice": info.get("currentPrice") or info.get("regularMarketPrice"),
+        "sector": info.get("sector", ""),
+        "metrics": metrics,
+        "passing": sum(1 for m in metrics if m["status"] == "pass"),
+        "failing": sum(1 for m in metrics if m["status"] == "fail"),
+        "infoCount": sum(1 for m in metrics if m["status"] == "info"),
+        "financials": df_to_table(data.get("financials")),
+        "balanceSheet": df_to_table(data.get("balance_sheet")),
+        "cashFlow": df_to_table(data.get("cashflow")),
+    }
+
+
+class BuffettTakeRequest(BaseModel):
+    symbol: str
+    passing: list
+    failing: list
+
+
+@app.post("/api/stock/buffett-take")
+def buffett_take(req: BuffettTakeRequest):
+    from rag_chain import ask
+
+    passing_str = ", ".join(req.passing) if req.passing else "none"
+    failing_str = ", ".join(req.failing) if req.failing else "none"
+    question = (
+        f"Using Warren Buffett's principles, evaluate {req.symbol}. "
+        f"Criteria passed: {passing_str}. "
+        f"Criteria failed: {failing_str}. "
+        f"Based on these fundamentals, provide a Buffett-style assessment."
+    )
+    try:
+        result = ask(question)
+        return {"answer": result["answer"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/chat")
 def chat(req: QuestionRequest):
     from rag_chain import ask
@@ -74,6 +199,9 @@ class BacktestRequest(BaseModel):
     endDate: str | None = None
     shortWindow: int = 20
     longWindow: int = 50
+    rsiPeriod: int = 14
+    oversold: int = 30
+    overbought: int = 70
 
 
 @app.post("/api/backtest")
@@ -85,7 +213,7 @@ def backtest(req: BacktestRequest):
     if req.strategy == "ma_crossover":
         result = run_moving_average_crossover(symbol, short_window=req.shortWindow, long_window=req.longWindow, start=req.startDate, end=req.endDate)
     elif req.strategy == "rsi":
-        result = run_rsi_strategy(symbol, rsi_period=14, oversold=30, overbought=70, start=req.startDate, end=req.endDate)
+        result = run_rsi_strategy(symbol, rsi_period=req.rsiPeriod, oversold=req.oversold, overbought=req.overbought, start=req.startDate, end=req.endDate)
     else:
         raise HTTPException(status_code=400, detail=f"Unknown strategy: {req.strategy}")
 
@@ -113,6 +241,11 @@ def backtest(req: BacktestRequest):
         for i, row in result.trades.iterrows()
     ]
 
+    price_data = [
+        {"date": df.index[i].strftime("%Y-%m-%d"), "close": round(float(df["Close"].iloc[i]), 2)}
+        for i in range(0, len(df), 3)
+    ]
+
     return {
         "result": {
             "symbol": result.symbol,
@@ -128,4 +261,5 @@ def backtest(req: BacktestRequest):
         },
         "equityCurve": equity_curve,
         "trades": trades,
+        "priceData": price_data,
     }
