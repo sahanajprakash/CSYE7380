@@ -25,10 +25,10 @@ export default function TradingPage() {
   const [backtestTrades, setBacktestTrades] = useState(null);
   const [backtestLoading, setBacktestLoading] = useState(false);
 
-  async function handleBacktest({ symbol, strategy }) {
+  async function handleBacktest({ symbol, strategy, startDate, endDate, shortWindow, longWindow }) {
     setBacktestLoading(true);
     try {
-      const data = await runBacktest(symbol, strategy);
+      const data = await runBacktest(symbol, strategy, { startDate, endDate, shortWindow, longWindow });
       setBacktestResult(data.result);
       setBacktestCurve(data.equityCurve);
       setBacktestTrades(data.trades);

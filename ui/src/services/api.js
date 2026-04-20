@@ -1,5 +1,4 @@
 import { mockPriceDataBySymbol, mockFundamentals } from "../data/mockStockData";
-import { mockBacktestResult, mockEquityCurve, mockTrades } from "../data/mockBacktest";
 
 export async function sendMessage(question) {
   const res = await fetch("/api/chat", {
@@ -23,7 +22,6 @@ export async function fetchInvestmentActivity() {
   return res.json();
 }
 
-// Stock data and backtest still use mock for now
 export async function getStockData(symbol) {
   await new Promise((r) => setTimeout(r, 300));
   return {
@@ -32,11 +30,12 @@ export async function getStockData(symbol) {
   };
 }
 
-export async function runBacktest(symbol, strategy, params) {
-  await new Promise((r) => setTimeout(r, 1200));
-  return {
-    result: { ...mockBacktestResult, symbol, strategyName: strategy },
-    equityCurve: mockEquityCurve,
-    trades: mockTrades,
-  };
+export async function runBacktest(symbol, strategy, params = {}) {
+  const res = await fetch("/api/backtest", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ symbol, strategy, ...params }),
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
 }

@@ -6,11 +6,18 @@ import { strategies } from "../../data/mockBacktest";
 export default function BacktestForm({ onRun, loading }) {
   const [symbol, setSymbol] = useState("AAPL");
   const [strategy, setStrategy] = useState("ma_crossover");
+  const [startDate, setStartDate] = useState("2018-01-01");
+  const [endDate, setEndDate] = useState("");
+  const [shortWindow, setShortWindow] = useState(20);
+  const [longWindow, setLongWindow] = useState(50);
 
   function handleSubmit(e) {
     e.preventDefault();
-    onRun({ symbol, strategy });
+    onRun({ symbol, strategy, startDate, endDate: endDate || null, shortWindow: Number(shortWindow), longWindow: Number(longWindow) });
   }
+
+  const inputCls = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-red-500/50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100";
+  const labelCls = "mb-1 block text-xs text-slate-500 dark:text-slate-400";
 
   return (
     <form onSubmit={handleSubmit} className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900/60">
@@ -20,12 +27,8 @@ export default function BacktestForm({ onRun, loading }) {
       <div className="space-y-4">
         {/* Symbol */}
         <div>
-          <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Stock Symbol</label>
-          <select
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-red-500/50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-          >
+          <label className={labelCls}>Stock Symbol</label>
+          <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className={inputCls}>
             {stockList.map((s) => (
               <option key={s.symbol} value={s.symbol}>{s.symbol} — {s.name}</option>
             ))}
@@ -34,32 +37,44 @@ export default function BacktestForm({ onRun, loading }) {
 
         {/* Strategy */}
         <div>
-          <label className="mb-2 block text-xs text-slate-500 dark:text-slate-400">Strategy</label>
-          <div className="space-y-2">
+          <label className={labelCls}>Strategy</label>
+          <select value={strategy} onChange={(e) => setStrategy(e.target.value)} className={inputCls}>
             {strategies.map((s) => (
-              <label
-                key={s.id}
-                className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition-all ${
-                  strategy === s.id
-                    ? "border-red-500/50 bg-red-50 dark:bg-red-500/5"
-                    : "border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="strategy"
-                  value={s.id}
-                  checked={strategy === s.id}
-                  onChange={() => setStrategy(s.id)}
-                  className="mt-0.5 accent-red-500"
-                />
-                <div>
-                  <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{s.name}</p>
-                  <p className="text-xs text-slate-500">{s.description}</p>
-                </div>
-              </label>
+              <option key={s.id} value={s.id}>{s.name}</option>
             ))}
+          </select>
+        </div>
+
+        {/* Start & End Date */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelCls}>Start Date</label>
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} />
           </div>
+          <div>
+            <label className={labelCls}>End Date</label>
+            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} placeholder="Today" className={inputCls} />
+          </div>
+        </div>
+
+        {/* Short MA Window */}
+        <div>
+          <label className={labelCls}>Short MA Window</label>
+          <input
+            type="number" min={1} max={200} value={shortWindow}
+            onChange={(e) => setShortWindow(e.target.value)}
+            className={inputCls}
+          />
+        </div>
+
+        {/* Long MA Window */}
+        <div>
+          <label className={labelCls}>Long MA Window</label>
+          <input
+            type="number" min={1} max={500} value={longWindow}
+            onChange={(e) => setLongWindow(e.target.value)}
+            className={inputCls}
+          />
         </div>
 
         {/* Submit */}
