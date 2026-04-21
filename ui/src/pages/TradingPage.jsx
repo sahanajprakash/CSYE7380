@@ -8,7 +8,8 @@ import BacktestResults from "../components/backtest/BacktestResults";
 import EquityChart from "../components/backtest/EquityChart";
 import SignalChart from "../components/backtest/SignalChart";
 import TradesTable from "../components/backtest/TradesTable";
-import { runBacktest, getStockPrices, getStockFundamentals } from "../services/api";
+import { runBacktest, getStockPrices, getStockFundamentals, getBacktestBuffettTake } from "../services/api";
+import { Sparkles } from "lucide-react";
 
 const tabs = [
   { id: "trading", label: "Stock Trading", icon: LineChart },
@@ -47,17 +48,36 @@ export default function TradingPage() {
   const [backtestCurve, setBacktestCurve] = useState(null);
   const [backtestTrades, setBacktestTrades] = useState(null);
   const [backtestLoading, setBacktestLoading] = useState(false);
+  const [backtestTake, setBacktestTake] = useState(null);
+  const [backtestTakeLoading, setBacktestTakeLoading] = useState(false);
 
   async function handleBacktest({ symbol, strategy, startDate, endDate, shortWindow, longWindow, rsiPeriod, oversold, overbought }) {
     setBacktestLoading(true);
+    setBacktestTake(null);
+    setBacktestTakeLoading(true);
     try {
       const data = await runBacktest(symbol, strategy, { startDate, endDate, shortWindow, longWindow, rsiPeriod, oversold, overbought });
       setBacktestResult(data.result);
       setBacktestCurve(data.equityCurve);
       setBacktestTrades(data.trades);
       setBacktestPriceData(data.priceData || null);
+      try {
+        const take = await getBacktestBuffettTake({
+          symbol: data.result.symbol,
+          strategyName: data.result.strategyName,
+          totalReturn: data.result.totalReturn,
+          sharpeRatio: data.result.sharpeRatio,
+          maxDrawdown: data.result.maxDrawdown,
+          winRate: data.result.winRate,
+          numTrades: data.result.numTrades,
+        });
+        setBacktestTake(take.answer);
+      } catch (err) {
+        setBacktestTake(`Error: ${err.message}`);
+      }
     } finally {
       setBacktestLoading(false);
+      setBacktestTakeLoading(false);
     }
   }
 
@@ -120,9 +140,33 @@ export default function TradingPage() {
       {/* Backtesting Tab */}
       {activeTab === "backtest" && (
         <div className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-1">
+          <div className="grid gap-6 lg:grid-cols-3 lg:items-stretch">
+            <div className="lg:col-span-1 flex flex-col gap-4">
               <BacktestForm onRun={handleBacktest} loading={backtestLoading} />
+              {backtestResult && (
+                <div className="flex-1 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/60 flex flex-col">
+                  <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                    <Sparkles size={12} /> What Would Warren Buffett Say?
+                  </h3>
+                  {backtestTakeLoading ? (
+                    <p className="text-xs text-slate-400 italic">Analysing results...</p>
+                  ) : backtestTake ? (() => {
+                    const r = backtestResult;
+                    const good = r.totalReturn > 0 && r.sharpeRatio > 1 && r.winRate > 0.5;
+                    const bad = r.totalReturn < 0 || r.sharpeRatio < 0.5;
+                    const colors = good
+                      ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-800 dark:text-emerald-300"
+                      : bad
+                      ? "bg-red-500/10 border-red-500/20 text-red-800 dark:text-red-300"
+                      : "bg-amber-500/10 border-amber-500/20 text-amber-800 dark:text-amber-300";
+                    return (
+                      <div className={`rounded-lg border px-3 py-2 flex-1 overflow-y-auto ${colors}`}>
+                        <p className="text-xs leading-relaxed">{backtestTake}</p>
+                      </div>
+                    );
+                  })() : null}
+                </div>
+              )}
             </div>
             <div className="lg:col-span-2 space-y-6">
               {backtestResult ? (

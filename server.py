@@ -192,6 +192,34 @@ def chat(req: QuestionRequest):
     return ask(req.question)
 
 
+class BacktestTakeRequest(BaseModel):
+    symbol: str
+    strategyName: str
+    totalReturn: float
+    sharpeRatio: float
+    maxDrawdown: float
+    winRate: float
+    numTrades: int
+
+
+@app.post("/api/backtest/buffett-take")
+def backtest_buffett_take(req: BacktestTakeRequest):
+    from rag_chain import ask
+
+    question = (
+        f"A {req.strategyName} strategy on {req.symbol} produced: "
+        f"total return {req.totalReturn * 100:.1f}%, Sharpe ratio {req.sharpeRatio:.2f}, "
+        f"max drawdown {req.maxDrawdown * 100:.1f}%, win rate {req.winRate * 100:.1f}%, "
+        f"{req.numTrades} trades. "
+        f"From Warren Buffett's perspective, what does he think of this trading approach and results?"
+    )
+    try:
+        result = ask(question)
+        return {"answer": result["answer"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 class BacktestRequest(BaseModel):
     symbol: str
     strategy: str
