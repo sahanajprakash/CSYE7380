@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LineChart, FlaskConical } from "lucide-react";
+import { LineChart, FlaskConical, Sparkles } from "lucide-react";
 import StockSelector from "../components/trading/StockSelector";
 import PriceChart from "../components/trading/PriceChart";
 import FundamentalsPanel from "../components/trading/FundamentalsPanel";
@@ -8,16 +8,17 @@ import BacktestResults from "../components/backtest/BacktestResults";
 import EquityChart from "../components/backtest/EquityChart";
 import SignalChart from "../components/backtest/SignalChart";
 import TradesTable from "../components/backtest/TradesTable";
+import TradeLikeBuffett from "../components/buffett/TradelikBuffett";
 import { runBacktest, getStockPrices, getStockFundamentals, getBacktestBuffettTake } from "../services/api";
-import { Sparkles } from "lucide-react";
 
 const tabs = [
+  { id: "buffett", label: "Trade like Buffett", icon: Sparkles },
   { id: "trading", label: "Stock Trading", icon: LineChart },
   { id: "backtest", label: "Backtesting", icon: FlaskConical },
 ];
 
 export default function TradingPage() {
-  const [activeTab, setActiveTab] = useState("trading");
+  const [activeTab, setActiveTab] = useState("buffett");
   const [selectedSymbol, setSelectedSymbol] = useState("AAPL");
   const [priceData, setPriceData] = useState([]);
   const [priceLoading, setPriceLoading] = useState(false);
@@ -88,7 +89,7 @@ export default function TradingPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Trading & Analysis</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Analyze stocks and backtest trading strategies
+            Analyze stocks, backtest strategies, and invest like Buffett
           </p>
         </div>
         <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900/60">
@@ -108,6 +109,9 @@ export default function TradingPage() {
           ))}
         </div>
       </div>
+
+      {/* Trade like Buffett Tab */}
+      {activeTab === "buffett" && <TradeLikeBuffett />}
 
       {/* Stock Trading Tab */}
       {activeTab === "trading" && (

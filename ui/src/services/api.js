@@ -1,5 +1,3 @@
-import { mockPriceDataBySymbol, mockFundamentals } from "../data/mockStockData";
-
 export async function sendMessage(question) {
   const res = await fetch("/api/chat", {
     method: "POST",
@@ -50,6 +48,34 @@ export async function runBacktest(symbol, strategy, params = {}) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ symbol, strategy, ...params }),
   });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchBuffettAnalysis(symbol) {
+  const res = await fetch("/api/stock/buffett-analysis", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ symbol }),
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchSearchMethodEval() {
+  const res = await fetch("/api/evaluation/search-methods");
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchChunkSizeEval() {
+  const res = await fetch("/api/evaluation/chunk-sizes");
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchTestSuite() {
+  const res = await fetch("/api/evaluation/test-suite");
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }

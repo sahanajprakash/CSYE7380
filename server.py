@@ -18,8 +18,14 @@ app.add_middleware(
 )
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
 class QuestionRequest(BaseModel):
     question: str
+    history: list[ChatMessage] = []
 
 
 PORTFOLIO_TICKERS = ["AAPL", "BAC", "AXP", "KO", "CVX", "OXY", "KHC", "MCO", "DVA", "VRSN"]
@@ -104,7 +110,6 @@ def stock_fundamentals(symbol: str):
         except (TypeError, ValueError):
             latest = None
 
-        # Year-by-year history for bar chart (oldest → newest)
         history = []
         if hasattr(series, "items"):
             for date, val in reversed(list(series.items())):
@@ -183,6 +188,58 @@ def buffett_take(req: BuffettTakeRequest):
         return {"answer": result["answer"]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class BuffettAnalysisRequest(BaseModel):
+    symbol: str
+
+
+@app.post("/api/stock/buffett-analysis")
+def buffett_analysis(req: BuffettAnalysisRequest):
+    """Generate a Buffett-style scorecard for a stock."""
+    from stock_analysis import fetch_stock_data
+    from rag_chain import ask
+
+    stock_data = fetch_stock_data(req.symbol)
+    if not stock_data:
+        return {"error": f"Could not fetch data for {req.symbol}"}
+
+    scorecard = []
+    roe = stock_data.get("roe")
+    if roe is not None:
+        score = "pass" if roe > 0.15 else ("caution" if roe > 0.10 else "fail")
+        scorecard.append({"metric": "Return on Equity", "value": f"{roe * 100:.1f}%", "threshold": "> 15%", "score": score, "reason": "Buffett seeks companies that earn high returns on shareholder equity."})
+
+    dte = stock_data.get("debt_to_equity")
+    if dte is not None:
+        score = "pass" if dte < 50 else ("caution" if dte < 100 else "fail")
+        scorecard.append({"metric": "Debt / Equity", "value": f"{dte:.1f}", "threshold": "< 50", "score": score, "reason": "Low debt means the company can weather downturns."})
+
+    margin = stock_data.get("profit_margins")
+    if margin is not None:
+        score = "pass" if margin > 0.20 else ("caution" if margin > 0.10 else "fail")
+        scorecard.append({"metric": "Profit Margin", "value": f"{margin * 100:.1f}%", "threshold": "> 20%", "score": score, "reason": "High margins indicate pricing power and an economic moat."})
+
+    pe = stock_data.get("trailing_pe")
+    if pe is not None:
+        score = "pass" if pe < 20 else ("caution" if pe < 30 else "fail")
+        scorecard.append({"metric": "P/E Ratio", "value": f"{pe:.1f}", "threshold": "< 20", "score": score, "reason": "Buffett looks for a margin of safety — paying a reasonable price."})
+
+    pass_count = sum(1 for s in scorecard if s["score"] == "pass")
+    total = len(scorecard)
+    moat = "Wide" if pass_count >= total * 0.8 else ("Narrow" if pass_count >= total * 0.5 else "None")
+
+    rag_result = ask(f"What would Buffett think of {req.symbol} stock?")
+
+    return {
+        "stock_data": stock_data,
+        "scorecard": scorecard,
+        "moat": moat,
+        "passCount": pass_count,
+        "totalCriteria": total,
+        "verdict": rag_result.get("answer", ""),
+        "sources": rag_result.get("sources", []),
+    }
 
 
 @app.post("/api/chat")
@@ -291,3 +348,41 @@ def backtest(req: BacktestRequest):
         "trades": trades,
         "priceData": price_data,
     }
+
+
+@app.get("/api/evaluation/search-methods")
+def eval_search_methods():
+    """Run evaluation comparing FAISS-only, Hybrid, and Hybrid+Reranking."""
+    from evaluate import evaluate_retrieval, TEST_SUITE
+    from retriever import get_vectorstore, hybrid_search, retrieve
+
+    vs = get_vectorstore()
+
+    methods = {
+        "FAISS Only": lambda q, k: vs.similarity_search(q, k=k),
+        "Hybrid (BM25 + FAISS)": lambda q, k: hybrid_search(q, k=k),
+        "Hybrid + Reranking": lambda q, k: retrieve(q, k_retrieve=10, k_final=k),
+    }
+
+    results = {}
+    for name, fn in methods.items():
+        metrics, details = evaluate_retrieval(fn)
+        results[name] = {"metrics": metrics, "details": details}
+
+    return results
+
+
+@app.get("/api/evaluation/chunk-sizes")
+def eval_chunk_sizes():
+    """Run evaluation comparing different chunking strategies."""
+    from evaluate import compare_chunk_sizes
+
+    return compare_chunk_sizes()
+
+
+@app.get("/api/evaluation/test-suite")
+def eval_test_suite():
+    """Return the test suite used for evaluation."""
+    from evaluate import TEST_SUITE
+
+    return TEST_SUITE
