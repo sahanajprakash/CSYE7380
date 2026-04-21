@@ -23,57 +23,88 @@ from ingest import load_pdf, load_csvs
 
 RESULTS_PATH = os.path.join(VECTORSTORE_DIR, "eval_results.json")
 
-# Test suite: questions with expected source types and keywords that should appear
+# Test suite: mix of easy, paraphrased, vague, and cross-topic questions.
+# Harder questions test whether semantic search outperforms keyword search.
 TEST_SUITE = [
+    # --- Easy: direct keyword match ---
     {
         "question": "How did Buffett overcome his fear of public speaking?",
         "expected_source": "qa_personal_life",
         "expected_keywords": ["dale carnegie", "speaking", "course"],
     },
     {
-        "question": "What is Buffett's view on return on equity?",
-        "expected_source": "qa_",
-        "expected_keywords": ["return on equity", "roe", "performance"],
-    },
-    {
         "question": "What happened with Berkshire's textile operations?",
         "expected_source": "shareholder_letter",
         "expected_keywords": ["textile", "berkshire"],
     },
+    # --- Medium: paraphrased (no exact keyword match) ---
     {
-        "question": "How does Buffett manage risk?",
+        "question": "How does the Oracle of Omaha decide if a company is worth buying?",
         "expected_source": "qa_",
-        "expected_keywords": ["risk", "margin of safety", "downside"],
+        "expected_keywords": ["intrinsic value", "margin of safety", "earnings"],
     },
     {
-        "question": "Why does Buffett live in Omaha?",
+        "question": "What personality trait does Buffett say matters more than being smart?",
+        "expected_source": "qa_",
+        "expected_keywords": ["temperament", "iq", "greedy"],
+    },
+    {
+        "question": "Why did Buffett refuse to move to Wall Street?",
         "expected_source": "qa_personal_life",
-        "expected_keywords": ["omaha", "home", "simple"],
+        "expected_keywords": ["omaha", "independence", "wall street"],
     },
     {
-        "question": "What is Buffett's opinion on debt?",
+        "question": "How does Buffett feel about companies that borrow heavily?",
         "expected_source": "qa_",
-        "expected_keywords": ["debt", "leverage", "conservative"],
+        "expected_keywords": ["debt", "leverage"],
+    },
+    # --- Hard: vague or indirect, requires semantic understanding ---
+    {
+        "question": "What childhood experiences shaped Buffett's money habits?",
+        "expected_source": "qa_personal_life",
+        "expected_keywords": ["grocery", "gum", "coca-cola", "pinball", "entrepreneurial"],
     },
     {
-        "question": "How did insurance operations grow at Berkshire?",
+        "question": "How did Berkshire's float contribute to investment returns?",
         "expected_source": "shareholder_letter",
-        "expected_keywords": ["insurance", "premium", "national indemnity"],
+        "expected_keywords": ["float", "insurance", "premium", "invest"],
     },
     {
-        "question": "What is intrinsic value according to Buffett?",
+        "question": "What's the difference between price and value in Buffett's mind?",
         "expected_source": "qa_",
-        "expected_keywords": ["intrinsic value", "discount", "cash flow"],
+        "expected_keywords": ["price", "value", "intrinsic", "margin"],
     },
     {
-        "question": "How does Buffett evaluate company management?",
+        "question": "Describe how Buffett's strategy evolved after meeting Charlie Munger.",
         "expected_source": "qa_",
-        "expected_keywords": ["management", "integrity", "competent"],
+        "expected_keywords": ["munger", "quality", "wonderful company", "fair price"],
+    },
+    # --- Cross-topic: should pull from shareholder letters, not Q&A ---
+    {
+        "question": "What were Berkshire's operating earnings in the late 1970s?",
+        "expected_source": "shareholder_letter",
+        "expected_keywords": ["operating earnings", "1977", "1978", "equity capital"],
     },
     {
-        "question": "What is Buffett's approach to market timing?",
+        "question": "Which insurance companies did Berkshire acquire?",
+        "expected_source": "shareholder_letter",
+        "expected_keywords": ["national indemnity", "geico", "general re", "insurance"],
+    },
+    # --- Adversarial: terms that could mislead keyword search ---
+    {
+        "question": "Does Buffett believe in diversification?",
         "expected_source": "qa_",
-        "expected_keywords": ["timing", "patience", "long-term"],
+        "expected_keywords": ["concentrate", "focus", "few", "outstanding"],
+    },
+    {
+        "question": "What role does doing nothing play in Buffett's strategy?",
+        "expected_source": "qa_",
+        "expected_keywords": ["patience", "long-term", "hold", "inactivity"],
+    },
+    {
+        "question": "How does Buffett think about competitive advantages?",
+        "expected_source": "qa_",
+        "expected_keywords": ["moat", "competitive advantage", "durable"],
     },
 ]
 
