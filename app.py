@@ -11,7 +11,8 @@ import pandas as pd
 import streamlit as st
 
 from config import APP_TITLE
-from rag_chain import ask, get_vectorstore, get_llm
+from rag_chain import ask, get_llm
+from retriever import get_vectorstore, get_reranker
 from stock_analysis import compute_ratios, passes_rule, fmt, RATIO_DEFINITIONS
 from trading_backtest import run_moving_average_crossover, run_rsi_strategy
 
@@ -23,6 +24,7 @@ st.set_page_config(page_title=APP_TITLE, page_icon="📈", layout="wide")
 def load_models():
     get_vectorstore()
     get_llm()
+    get_reranker()
     return True
 
 
@@ -148,8 +150,10 @@ with tab_chat:
 
         with st.chat_message("assistant"):
             is_stock = any(kw in question.lower() for kw in ["stock", "think", "invest", "buy", "sell"])
+            # Pass conversation history for follow-up support
+            history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
             with st.spinner("Analyzing..." if is_stock else "Thinking..."):
-                result = ask(question)
+                result = ask(question, history=history)
             if result.get("stock_data"):
                 display_stock_card(result["stock_data"])
             st.write(result["answer"])
