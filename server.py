@@ -18,8 +18,14 @@ app.add_middleware(
 )
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
 class QuestionRequest(BaseModel):
     question: str
+    history: list[ChatMessage] = []
 
 
 PORTFOLIO_TICKERS = ["AAPL", "BAC", "AXP", "KO", "CVX", "OXY", "KHC", "MCO", "DVA", "VRSN"]
@@ -251,7 +257,8 @@ def buffett_analysis(req: BuffettAnalysisRequest):
 def chat(req: QuestionRequest):
     from rag_chain import ask
 
-    return ask(req.question)
+    history = [{"role": m.role, "content": m.content} for m in req.history]
+    return ask(req.question, history=history)
 
 
 @app.get("/api/evaluation/search-methods")
