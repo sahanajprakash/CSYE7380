@@ -17,7 +17,7 @@ from config import VECTORSTORE_DIR, EMBEDDING_MODEL, LOCAL_MODEL, GROQ_MODEL, TO
 from retriever import retrieve, get_vectorstore, get_reranker
 from stock_analysis import is_stock_query, extract_ticker, fetch_stock_data, format_stock_summary
 
-load_dotenv(override=True)
+load_dotenv()
 
 # Module-level singletons
 _model = None
