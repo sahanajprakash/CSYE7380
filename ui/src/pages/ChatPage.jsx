@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { BarChart3, TrendingUp, Sun, Moon } from 'lucide-react';
+import { BarChart3, TrendingUp, FlaskConical, Sun, Moon } from 'lucide-react';
 import warrenAvatar from '../assets/warren-avatar-sm.png';
 import warrenLogo from '../assets/warren-logo.png';
 import ChatMessage from '../components/chat/ChatMessage';
@@ -8,7 +8,8 @@ import ChatInput from '../components/chat/ChatInput';
 import SampleQuestions from '../components/chat/SampleQuestions';
 import ChatSidebar from '../components/chat/ChatSidebar';
 import { useTheme } from '../context/ThemeContext';
-import { sendMessage } from '../services/api';
+import { sendMessage, fetchBuffettAnalysis } from '../services/api';
+import { scoreHex } from '../utils/buffettScoring';
 
 const CONVERSATIONS_KEY = 'buffett-conversations';
 const ACTIVE_KEY = 'buffett-active-chat';
@@ -108,6 +109,110 @@ export default function ChatPage() {
     }
   }
 
+  async function handleSendPortfolio(holdings) {
+    let currentId = activeId;
+    if (!currentId) {
+      const id = generateId();
+      const newConv = {
+        id,
+        title: 'Portfolio Analysis',
+        messages: [],
+        createdAt: Date.now(),
+      };
+      setConversations((prev) => [newConv, ...prev]);
+      setActiveId(id);
+      currentId = id;
+    }
+
+    const summary = holdings.map((h) => `${h.symbol} ${h.weight}%`).join(', ');
+    const userMsg = { role: 'user', content: `Analyze portfolio: ${summary}` };
+
+    setConversations((prev) =>
+      prev.map((c) => {
+        if (c.id !== currentId) return c;
+        const newMsgs = [...c.messages, userMsg];
+        return { ...c, messages: newMsgs, title: deriveTitle(newMsgs) };
+      }),
+    );
+
+    setLoading(true);
+
+    try {
+      const fetched = await Promise.allSettled(
+        holdings.map(async (h) => {
+          const analysis = await fetchBuffettAnalysis(h.symbol);
+          return { symbol: h.symbol, weight: h.weight, analysis };
+        })
+      );
+
+      const results = fetched.map((r, i) => {
+        if (r.status === 'fulfilled') return r.value;
+        return { symbol: holdings[i].symbol, weight: holdings[i].weight, analysis: null };
+      });
+
+      const validResults = results.filter((r) => r.analysis);
+      const totalWtValid = validResults.reduce((s, r) => s + r.weight, 0) || 1;
+
+      const avgPassRate =
+        validResults.length > 0
+          ? validResults.reduce(
+              (s, r) => s + r.analysis.passCount / (r.analysis.totalCriteria || 1),
+              0
+            ) / validResults.length
+          : 0;
+
+      const weightedPassRate =
+        validResults.length > 0
+          ? validResults.reduce(
+              (s, r) =>
+                s + (r.weight / totalWtValid) * (r.analysis.passCount / (r.analysis.totalCriteria || 1)),
+              0
+            )
+          : 0;
+
+      const avgScore = (avgPassRate * 10).toFixed(1);
+      const weightedScore = (weightedPassRate * 10).toFixed(1);
+      const strongPicks = validResults.filter(
+        (r) => r.analysis.passCount / (r.analysis.totalCriteria || 1) >= 0.7
+      ).length;
+
+      const donutSegments = validResults.map((r) => ({
+        symbol: r.symbol,
+        value: r.weight,
+        color: scoreHex(r.analysis.passCount / (r.analysis.totalCriteria || 1)),
+      }));
+
+      const assistantMsg = {
+        role: 'assistant',
+        content: `Portfolio analysis complete for ${results.length} stocks.`,
+        type: 'portfolio-overview',
+        portfolio_data: { holdings, results, avgScore, weightedScore, strongPicks, donutSegments },
+      };
+
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== currentId) return c;
+          const newMsgs = [...c.messages, assistantMsg];
+          return { ...c, messages: newMsgs, title: deriveTitle(newMsgs) };
+        }),
+      );
+    } catch {
+      const errorMsg = {
+        role: 'assistant',
+        content:
+          'Sorry, portfolio analysis failed. Make sure the FastAPI server is running (uvicorn server:app --port 8000).',
+      };
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== currentId) return c;
+          return { ...c, messages: [...c.messages, errorMsg] };
+        }),
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleSend(question) {
     let currentId = activeId;
     if (!currentId) {
@@ -139,11 +244,24 @@ export default function ChatPage() {
       const currentConv = conversations.find((c) => c.id === currentId);
       const history = (currentConv?.messages || []).map(({ role, content }) => ({ role, content }));
       const result = await sendMessage(question, history);
+
+      // If this is a stock query, also fetch Buffett analysis for the "View Detailed Analysis" link
+      const tickerMatch = question.match(/what would buffett think of\s+([A-Z]{1,5})\s*\??$/i);
+      let buffettAnalysis = null;
+      if (tickerMatch) {
+        try {
+          buffettAnalysis = await fetchBuffettAnalysis(tickerMatch[1].toUpperCase());
+        } catch {
+          // Non-critical — chat still works without it
+        }
+      }
+
       const assistantMsg = {
         role: 'assistant',
         content: result.answer,
         sources: result.sources,
         stock_data: result.stock_data,
+        ...(buffettAnalysis && { buffett_analysis: buffettAnalysis }),
       };
       setConversations((prev) =>
         prev.map((c) => {
@@ -200,15 +318,21 @@ export default function ChatPage() {
           <div className='flex items-center gap-1'>
             <Link
               to='/'
-              className='flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200'
+              className='flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200'
             >
-              <BarChart3 size={14} /> Portfolio
+              <BarChart3 size={16} /> <span className='hidden sm:inline'>Portfolio</span>
             </Link>
             <Link
               to='/trading'
-              className='flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200'
+              className='flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200'
             >
-              <TrendingUp size={14} /> Trading
+              <TrendingUp size={16} /> <span className='hidden sm:inline'>Trading</span>
+            </Link>
+            <Link
+              to='/evaluation'
+              className='flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200'
+            >
+              <FlaskConical size={16} /> <span className='hidden sm:inline'>Evaluation</span>
             </Link>
             <button
               onClick={toggle}
@@ -256,7 +380,7 @@ export default function ChatPage() {
               </div>
             </div>
           )}
-          <ChatInput onSend={handleSend} disabled={loading} />
+          <ChatInput onSend={handleSend} onSendPortfolio={handleSendPortfolio} disabled={loading} />
         </div>
       </div>
     </div>

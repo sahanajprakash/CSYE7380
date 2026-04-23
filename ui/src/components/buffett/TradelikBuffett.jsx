@@ -78,6 +78,7 @@ export default function TradeLikeBuffett({ initialHoldings = null }) {
 
   const totalWeight = holdings.reduce((sum, h) => sum + h.weight, 0);
 
+  // Auto-analyze when navigating from chat with initialHoldings
   useEffect(() => {
     if (initialHoldings && initialHoldings.length > 0 && !autoAnalyzed.current) {
       autoAnalyzed.current = true;

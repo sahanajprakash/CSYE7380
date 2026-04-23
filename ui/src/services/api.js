@@ -1,8 +1,8 @@
-export async function sendMessage(question) {
+export async function sendMessage(question, history = []) {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, history }),
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
@@ -76,6 +76,12 @@ export async function fetchChunkSizeEval() {
 
 export async function fetchTestSuite() {
   const res = await fetch("/api/evaluation/test-suite");
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchEmbeddingProjection() {
+  const res = await fetch("/api/evaluation/embedding-projection");
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
