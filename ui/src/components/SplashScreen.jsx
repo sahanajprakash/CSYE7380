@@ -18,7 +18,7 @@ export default function SplashScreen({ onComplete }) {
   const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
-    const duration = 7500;
+    const duration = 4000;
     const interval = 50;
     const step = (interval / duration) * 100;
 
