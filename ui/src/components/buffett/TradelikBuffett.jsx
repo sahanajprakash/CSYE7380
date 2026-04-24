@@ -25,8 +25,9 @@ const moatColor = {
 
 function metricShort(name) {
   if (!name) return "?";
-  if (name.toLowerCase().includes("equity")) return "ROE";
   if (name.toLowerCase().includes("debt")) return "D/E";
+  if (name.toLowerCase().includes("return on equity") || name.toLowerCase().includes("roe")) return "ROE";
+  if (name.toLowerCase().includes("equity")) return "ROE";
   if (name.toLowerCase().includes("margin")) return "Margin";
   if (name.toLowerCase().includes("p/e") || name.toLowerCase().includes("price")) return "P/E";
   return name.slice(0, 5);
